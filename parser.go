@@ -149,15 +149,17 @@ func (p *Parser) parseParameterizedMember() (ListItem, error) {
 			}
 		}
 		var paramValue Item
-		b, err = p.peekByte()
-		if err != nil {
-			return nil, err
-		}
-		if b == '=' {
-			p.advance()
-			paramValue, err = p.parseItemStr()
+		if !p.eol() {
+			b, err = p.peekByte()
 			if err != nil {
 				return nil, err
+			}
+			if b == '=' {
+				p.advance()
+				paramValue, err = p.parseItemStr()
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		params[paramKey] = paramValue
@@ -206,14 +208,52 @@ func (p *Parser) parseInnerList() ([]Item, error) {
 
 func (p *Parser) parseItem() (Item, error) {
 	p.skipOWS()
-	item, err := p.parseItemStr()
+	i, err := p.parseItemStr()
 	if err != nil {
 		return nil, err
 	}
+
+	params := make(Parameters)
+	for !p.eol() {
+		p.skipOWS()
+		b, err := p.peekByte()
+		if err != nil {
+			return nil, err
+		}
+		if b != ';' {
+			break
+		}
+		p.advance()
+		p.skipOWS()
+		paramKey, err := p.parseKey()
+		if _, ok := params[paramKey]; ok {
+			return nil, &ParseError{
+				msg: fmt.Sprintf("Duplicate parameter key: %s", paramKey),
+				pos: p.pos,
+			}
+		}
+		var paramValue Item
+		if !p.eol() {
+			b, err = p.peekByte()
+			if err != nil {
+				return nil, err
+			}
+			if b == '=' {
+				p.advance()
+				paramValue, err = p.parseItemStr()
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		params[paramKey] = paramValue
+	}
+	i.(*item).params = params
+
 	if err := p.end(); err != nil {
 		return nil, err
 	}
-	return item, nil
+	return i, nil
 }
 
 func (p *Parser) parseItemStr() (Item, error) {
@@ -452,7 +492,7 @@ func (p *Parser) getByte() (byte, error) {
 func (p *Parser) peekByte() (byte, error) {
 	if len(p.input[p.pos:]) == 0 {
 		return 0, &ParseError{
-			msg: "Unexpected end of string",
+			msg: "Unexpected end of string in peekByte",
 			pos: p.pos,
 		}
 	}

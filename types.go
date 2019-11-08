@@ -22,6 +22,8 @@ type Item interface {
 	AsInt() int64
 	AsFloat() float64
 	AsToken() Token
+
+	Parameters() Parameters
 }
 
 type ListItemType int
@@ -49,7 +51,8 @@ type List []ListItem
 type Dictionary map[string]ListItem
 
 type item struct {
-	val interface{}
+	val    interface{}
+	params Parameters
 }
 
 func (i *item) Type() ItemType {
@@ -93,6 +96,10 @@ func (i *item) AsFloat() float64 {
 
 func (i *item) AsToken() Token {
 	return i.val.(Token)
+}
+
+func (i *item) Parameters() Parameters {
+	return i.params
 }
 
 type listItem struct {

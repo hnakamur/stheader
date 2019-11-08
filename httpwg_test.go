@@ -42,6 +42,7 @@ func TestHTTPWG(t *testing.T) {
 		"large-generated",
 		"string-generated",
 		"token-generated",
+		// "token-semicolon",
 	}
 	for _, groupName := range groupNames {
 		filename := fmt.Sprintf("structured-header-tests/%s.json", groupName)
@@ -115,18 +116,23 @@ func convertItemToExpected(item Item) []interface{} {
 	var ret []interface{}
 	switch item.Type() {
 	case ItemTypeBool:
-		return append(ret, item.AsBool(), make(map[string]interface{}))
+		return append(ret, item.AsBool(),
+			convertParametersToExpected(item.Parameters()))
 	case ItemTypeString:
-		return append(ret, item.AsString(), make(map[string]interface{}))
+		return append(ret, item.AsString(),
+			convertParametersToExpected(item.Parameters()))
 	case ItemTypeByteSeq:
 		return append(ret, base32.StdEncoding.EncodeToString(item.AsByteSeq()),
-			make(map[string]interface{}))
+			convertParametersToExpected(item.Parameters()))
 	case ItemTypeInt:
-		return append(ret, float64(item.AsInt()), make(map[string]interface{}))
+		return append(ret, float64(item.AsInt()),
+			convertParametersToExpected(item.Parameters()))
 	case ItemTypeFloat:
-		return append(ret, item.AsFloat(), make(map[string]interface{}))
+		return append(ret, item.AsFloat(),
+			convertParametersToExpected(item.Parameters()))
 	case ItemTypeToken:
-		return append(ret, string(item.AsToken()), make(map[string]interface{}))
+		return append(ret, string(item.AsToken()),
+			convertParametersToExpected(item.Parameters()))
 	default:
 		panic("invalid Item type")
 	}
