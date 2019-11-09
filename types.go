@@ -34,6 +34,7 @@ type Parameters interface {
 	Load(name string) (value BareItem, ok bool)
 	Range(f func(name string, value BareItem) bool)
 	Store(name string, value BareItem)
+	Len() int
 }
 
 type MemberType int
@@ -62,10 +63,18 @@ type Dictionary interface {
 	Load(name string) (value Member, ok bool)
 	Range(f func(name string, value Member) bool)
 	Store(name string, value Member)
+	Len() int
 }
 
 type bareItem struct {
 	val interface{}
+}
+
+func NewBareItem(val interface{}) BareItem {
+	bi := &bareItem{val: val}
+	// Do type check
+	bi.Type()
+	return bi
 }
 
 func (i *bareItem) Type() ItemType {
@@ -83,7 +92,7 @@ func (i *bareItem) Type() ItemType {
 	case Token:
 		return ItemTypeToken
 	default:
-		return ItemTypeInvalid
+		panic("invalid BareItem type")
 	}
 }
 
@@ -116,6 +125,13 @@ type item struct {
 	params   Parameters
 }
 
+func NewItem(bareItem BareItem, params Parameters) Item {
+	return &item{
+		bareItem: bareItem,
+		params:   params,
+	}
+}
+
 func (i *item) BareItem() BareItem {
 	return i.bareItem
 }
@@ -127,6 +143,13 @@ func (i *item) Parameters() Parameters {
 type innerList struct {
 	items  []Item
 	params Parameters
+}
+
+func NewInnerList(items []Item, params Parameters) InnerList {
+	return &innerList{
+		items:  items,
+		params: params,
+	}
 }
 
 func (l *innerList) Items() []Item {
@@ -144,6 +167,10 @@ type paramItem struct {
 
 type parameters struct {
 	items []paramItem
+}
+
+func NewParameters() Parameters {
+	return &parameters{}
 }
 
 func (p *parameters) Delete(name string) {
@@ -185,6 +212,10 @@ func (p *parameters) Store(name string, value BareItem) {
 	p.items[i].value = value
 }
 
+func (p *parameters) Len() int {
+	return len(p.items)
+}
+
 func (p *parameters) index(name string) int {
 	for i, it := range p.items {
 		if it.name == name {
@@ -198,6 +229,13 @@ type member struct {
 	val interface{}
 }
 
+func NewMember(val interface{}) Member {
+	m := &member{val: val}
+	// Do type check
+	m.Type()
+	return m
+}
+
 func (m *member) Type() MemberType {
 	switch m.val.(type) {
 	case Item:
@@ -205,7 +243,7 @@ func (m *member) Type() MemberType {
 	case InnerList:
 		return MemberTypeInnerList
 	default:
-		return MemberTypeInvalid
+		panic("invalid Member type")
 	}
 }
 
@@ -226,47 +264,55 @@ type dictionary struct {
 	items []dictItem
 }
 
-func (p *dictionary) Delete(name string) {
-	i := p.index(name)
+func NewDictionary() Dictionary {
+	return &dictionary{}
+}
+
+func (d *dictionary) Delete(name string) {
+	i := d.index(name)
 	if i == -1 {
 		return
 	}
 
 	// https://github.com/golang/go/wiki/SliceTricks
-	if i < len(p.items)-1 {
-		copy(p.items[i:], p.items[i+1:])
+	if i < len(d.items)-1 {
+		copy(d.items[i:], d.items[i+1:])
 	}
-	p.items[len(p.items)-1] = dictItem{}
-	p.items = p.items[:len(p.items)-1]
+	d.items[len(d.items)-1] = dictItem{}
+	d.items = d.items[:len(d.items)-1]
 }
 
-func (p *dictionary) Load(name string) (value Member, ok bool) {
-	i := p.index(name)
+func (d *dictionary) Load(name string) (value Member, ok bool) {
+	i := d.index(name)
 	if i == -1 {
 		return nil, false
 	}
-	return p.items[i].value, true
+	return d.items[i].value, true
 }
 
-func (p *dictionary) Range(f func(name string, value Member) bool) {
-	for _, it := range p.items {
+func (d *dictionary) Range(f func(name string, value Member) bool) {
+	for _, it := range d.items {
 		if !f(it.name, it.value) {
 			return
 		}
 	}
 }
 
-func (p *dictionary) Store(name string, value Member) {
-	i := p.index(name)
+func (d *dictionary) Store(name string, value Member) {
+	i := d.index(name)
 	if i == -1 {
-		p.items = append(p.items, dictItem{name: name, value: value})
+		d.items = append(d.items, dictItem{name: name, value: value})
 		return
 	}
-	p.items[i].value = value
+	d.items[i].value = value
 }
 
-func (p *dictionary) index(name string) int {
-	for i, it := range p.items {
+func (d *dictionary) Len() int {
+	return len(d.items)
+}
+
+func (d *dictionary) index(name string) int {
+	for i, it := range d.items {
 		if it.name == name {
 			return i
 		}

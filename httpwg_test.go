@@ -23,7 +23,7 @@ type httpwgTest struct {
 
 type httpwgTestGroup []httpwgTest
 
-func TestHTTPWG(t *testing.T) {
+func TestParseHTTPWG(t *testing.T) {
 	groupNames := []string{
 		"binary",
 		"boolean",
@@ -107,6 +107,90 @@ func TestHTTPWG(t *testing.T) {
 				if got, want := result, fixEmptyListExpected(test.Expected); !reflect.DeepEqual(got, want) {
 					t.Errorf("unmatch result, got=%+v, want=%+v",
 						got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestSerializeHTTPWG(t *testing.T) {
+	groupNames := []string{
+		"binary",
+		"boolean",
+		"number",
+		"string",
+		"token",
+
+		"item",
+
+		"list",
+		"listlist",
+		"dictionary",
+		"param-list",
+
+		"key-generated",
+		"large-generated",
+		"string-generated",
+		"token-generated",
+	}
+	debug := false
+	if debug {
+		groupNames = []string{"error"}
+	}
+	for _, groupName := range groupNames {
+		filename := fmt.Sprintf("structured-header-tests/%s.json", groupName)
+		group, err := readHTTPWGTestGroupFile(filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, test := range group {
+			if test.MustFail {
+				continue
+			}
+			subTestName := fmt.Sprintf("%s_%s", groupName, test.Name)
+			t.Run(subTestName, func(t *testing.T) {
+				parser := NewParser(strings.Join(test.Raw, ","))
+				var s Serializer
+				var got string
+				switch test.HeaderType {
+				case "item":
+					item, err := parser.parseItem()
+					if err != nil || parser.hasLeftOver() {
+						t.Fatal("parse error")
+					}
+					got, err = s.Serialize(item)
+					if err != nil {
+						t.Fatalf("serialize: %s", err)
+					}
+				case "list":
+					list, err := parser.parseList()
+					if err != nil || parser.hasLeftOver() {
+						t.Fatal("parse error")
+					}
+					got, err = s.Serialize(list)
+					if err != nil {
+						t.Fatalf("serialize: %s", err)
+					}
+				case "dictionary":
+					dict, err := parser.parseDictionary()
+					if err != nil || parser.hasLeftOver() {
+						t.Fatal("parse error")
+					}
+					got, err = s.Serialize(dict)
+					if err != nil {
+						t.Fatalf("serialize: %s", err)
+					}
+				default:
+					t.Fatalf("Unsupported header type: %s", test.HeaderType)
+				}
+				var want string
+				if len(test.Canonical) > 0 {
+					want = test.Canonical[0]
+				} else {
+					want = test.Raw[0]
+				}
+				if got != want {
+					t.Errorf("Unmatch, got=%q, want=%q", got, want)
 				}
 			})
 		}
