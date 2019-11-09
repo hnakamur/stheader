@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// Serialize return an ASCII string suitable for use in a HTTP header value.
+// It panics if value is neither Dictionary, List nor Item.
 func Serialize(value interface{}) (string, error) {
 	switch v := value.(type) {
 	case Dictionary:
