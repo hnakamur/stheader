@@ -150,7 +150,6 @@ func TestSerializeHTTPWG(t *testing.T) {
 			subTestName := fmt.Sprintf("%s_%s", groupName, test.Name)
 			t.Run(subTestName, func(t *testing.T) {
 				parser := NewParser(strings.Join(test.Raw, ","))
-				var s Serializer
 				var got string
 				switch test.HeaderType {
 				case "item":
@@ -158,7 +157,7 @@ func TestSerializeHTTPWG(t *testing.T) {
 					if err != nil || parser.hasLeftOver() {
 						t.Fatal("parse error")
 					}
-					got, err = s.Serialize(item)
+					got, err = Serialize(item)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}
@@ -167,7 +166,7 @@ func TestSerializeHTTPWG(t *testing.T) {
 					if err != nil || parser.hasLeftOver() {
 						t.Fatal("parse error")
 					}
-					got, err = s.Serialize(list)
+					got, err = Serialize(list)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}
@@ -176,7 +175,7 @@ func TestSerializeHTTPWG(t *testing.T) {
 					if err != nil || parser.hasLeftOver() {
 						t.Fatal("parse error")
 					}
-					got, err = s.Serialize(dict)
+					got, err = Serialize(dict)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}

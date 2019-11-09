@@ -7,49 +7,47 @@ import (
 	"strings"
 )
 
-type Serializer struct{}
-
-func (s *Serializer) Serialize(value interface{}) (string, error) {
+func Serialize(value interface{}) (string, error) {
 	switch v := value.(type) {
 	case Dictionary:
-		return s.SerializeDictionary(v)
+		return serializeDictionary(v)
 	case List:
-		return s.SerializeList(v)
+		return serializeList(v)
 	case Item:
-		return s.SerializeItem(v)
+		return serializeItem(v)
 	default:
-		return "", errors.New("invalid value type")
+		panic("invalid value type")
 	}
 }
 
-func (s *Serializer) SerializeDictionary(dict Dictionary) (string, error) {
+func serializeDictionary(dict Dictionary) (string, error) {
 	var b []byte
-	b, err := s.appendDictionary(b, dict)
+	b, err := appendDictionary(b, dict)
 	if err != nil {
 		return "", err
 	}
 	return string(b), nil
 }
 
-func (s *Serializer) SerializeList(list List) (string, error) {
+func serializeList(list List) (string, error) {
 	var b []byte
-	b, err := s.appendList(b, list)
+	b, err := appendList(b, list)
 	if err != nil {
 		return "", err
 	}
 	return string(b), nil
 }
 
-func (s *Serializer) SerializeItem(item Item) (string, error) {
+func serializeItem(item Item) (string, error) {
 	var b []byte
-	b, err := s.appendItem(b, item)
+	b, err := appendItem(b, item)
 	if err != nil {
 		return "", err
 	}
 	return string(b), nil
 }
 
-func (s *Serializer) appendDictionary(b []byte, dict Dictionary) ([]byte, error) {
+func appendDictionary(b []byte, dict Dictionary) ([]byte, error) {
 	if dict == nil || dict.Len() == 0 {
 		return b, nil
 	}
@@ -60,12 +58,12 @@ func (s *Serializer) appendDictionary(b []byte, dict Dictionary) ([]byte, error)
 		if i > 0 {
 			b = append(b, ", "...)
 		}
-		b, err = s.appendKey(b, name)
+		b, err = appendKey(b, name)
 		if err != nil {
 			return false
 		}
 		b = append(b, '=')
-		b, err = s.appendMember(b, val)
+		b, err = appendMember(b, val)
 		if err != nil {
 			return false
 		}
@@ -77,16 +75,16 @@ func (s *Serializer) appendDictionary(b []byte, dict Dictionary) ([]byte, error)
 	return b, nil
 }
 
-func (s *Serializer) appendMember(b []byte, m Member) ([]byte, error) {
+func appendMember(b []byte, m Member) ([]byte, error) {
 	var err error
 	switch m.Type() {
 	case MemberTypeInnerList:
-		b, err = s.appendInnerList(b, m.AsInnerList())
+		b, err = appendInnerList(b, m.AsInnerList())
 		if err != nil {
 			return nil, err
 		}
 	case MemberTypeItem:
-		b, err = s.appendItem(b, m.AsItem())
+		b, err = appendItem(b, m.AsItem())
 		if err != nil {
 			return nil, err
 		}
@@ -94,13 +92,13 @@ func (s *Serializer) appendMember(b []byte, m Member) ([]byte, error) {
 	return b, nil
 }
 
-func (s *Serializer) appendList(b []byte, list List) ([]byte, error) {
+func appendList(b []byte, list List) ([]byte, error) {
 	var err error
 	for i, m := range []Member(list) {
 		if i > 0 {
 			b = append(b, ", "...)
 		}
-		b, err = s.appendMember(b, m)
+		b, err = appendMember(b, m)
 		if err != nil {
 			return nil, err
 		}
@@ -108,33 +106,33 @@ func (s *Serializer) appendList(b []byte, list List) ([]byte, error) {
 	return b, nil
 }
 
-func (s *Serializer) appendInnerList(b []byte, list InnerList) ([]byte, error) {
+func appendInnerList(b []byte, list InnerList) ([]byte, error) {
 	b = append(b, '(')
 	var err error
 	for i, it := range list.Items() {
 		if i > 0 {
 			b = append(b, ' ')
 		}
-		b, err = s.appendItem(b, it)
+		b, err = appendItem(b, it)
 		if err != nil {
 			return nil, err
 		}
 	}
 	b = append(b, ')')
-	b, err = s.appendParameters(b, list.Parameters())
+	b, err = appendParameters(b, list.Parameters())
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (s *Serializer) appendItem(b []byte, item Item) ([]byte, error) {
-	b, err := s.appendBareItem(b, item.BareItem())
+func appendItem(b []byte, item Item) ([]byte, error) {
+	b, err := appendBareItem(b, item.BareItem())
 	if err != nil {
 		return nil, err
 	}
 
-	b, err = s.appendParameters(b, item.Parameters())
+	b, err = appendParameters(b, item.Parameters())
 	if err != nil {
 		return nil, err
 	}
@@ -142,20 +140,20 @@ func (s *Serializer) appendItem(b []byte, item Item) ([]byte, error) {
 	return b, err
 }
 
-func (s *Serializer) appendParameters(b []byte, params Parameters) ([]byte, error) {
+func appendParameters(b []byte, params Parameters) ([]byte, error) {
 	if params == nil || params.Len() == 0 {
 		return b, nil
 	}
 	var err error
 	params.Range(func(name string, val BareItem) bool {
 		b = append(b, ';')
-		b, err = s.appendKey(b, name)
+		b, err = appendKey(b, name)
 		if err != nil {
 			return false
 		}
 		if val != nil {
 			b = append(b, '=')
-			b, err = s.appendBareItem(b, val)
+			b, err = appendBareItem(b, val)
 			if err != nil {
 				return false
 			}
@@ -168,32 +166,32 @@ func (s *Serializer) appendParameters(b []byte, params Parameters) ([]byte, erro
 	return b, nil
 }
 
-func (s *Serializer) appendBareItem(b []byte, bi BareItem) ([]byte, error) {
+func appendBareItem(b []byte, bi BareItem) ([]byte, error) {
 	switch bi.Type() {
 	case ItemTypeString:
-		return s.appendBareItemString(b, bi.AsString())
+		return appendBareItemString(b, bi.AsString())
 	case ItemTypeByteSeq:
-		return s.appendBareItemByteSeq(b, bi.AsByteSeq())
+		return appendBareItemByteSeq(b, bi.AsByteSeq())
 	case ItemTypeBool:
-		return s.appendBareItemBool(b, bi.AsBool())
+		return appendBareItemBool(b, bi.AsBool())
 	case ItemTypeInt:
-		return s.appendBareItemInt(b, bi.AsInt())
+		return appendBareItemInt(b, bi.AsInt())
 	case ItemTypeFloat:
-		return s.appendBareItemFloat(b, bi.AsFloat())
+		return appendBareItemFloat(b, bi.AsFloat())
 	case ItemTypeToken:
-		return s.appendBareItemToken(b, bi.AsToken())
+		return appendBareItemToken(b, bi.AsToken())
 	}
 	panic("invalid item type")
 }
 
-func (s *Serializer) appendBareItemInt(b []byte, v int64) ([]byte, error) {
+func appendBareItemInt(b []byte, v int64) ([]byte, error) {
 	if v < -999_999_999_999_999 || 999_999_999_999_999 < v {
 		return nil, errors.New("Integers may not be larger than 15 digits")
 	}
 	return strconv.AppendInt(b, v, 10), nil
 }
 
-func (s *Serializer) appendBareItemFloat(b []byte, v float64) ([]byte, error) {
+func appendBareItemFloat(b []byte, v float64) ([]byte, error) {
 	formatted := strconv.FormatFloat(v, 'f', -1, 64)
 	parts := strings.Split(formatted, ".")
 	if len(parts[0]) > 15 || (v > 0 && len(parts[0]) > 14) {
@@ -213,7 +211,7 @@ func (s *Serializer) appendBareItemFloat(b []byte, v float64) ([]byte, error) {
 	return b, nil
 }
 
-func (s *Serializer) appendBareItemString(b []byte, val string) ([]byte, error) {
+func appendBareItemString(b []byte, val string) ([]byte, error) {
 	b = append(b, '"')
 	for _, c := range []byte(val) {
 		if c < ' ' || c > '~' {
@@ -228,7 +226,7 @@ func (s *Serializer) appendBareItemString(b []byte, val string) ([]byte, error) 
 	return b, nil
 }
 
-func (s *Serializer) appendBareItemToken(b []byte, token Token) ([]byte, error) {
+func appendBareItemToken(b []byte, token Token) ([]byte, error) {
 	m := tokenRegex.FindStringIndex(string(token))
 	if len(m) == 0 || m[1] != len(string(token)) {
 		return nil, errors.New("invalid token value")
@@ -236,14 +234,14 @@ func (s *Serializer) appendBareItemToken(b []byte, token Token) ([]byte, error) 
 	return append(b, token...), nil
 }
 
-func (s *Serializer) appendBareItemByteSeq(b []byte, data []byte) ([]byte, error) {
+func appendBareItemByteSeq(b []byte, data []byte) ([]byte, error) {
 	b = append(b, '*')
 	b = append(b, base64.StdEncoding.EncodeToString(data)...)
 	b = append(b, '*')
 	return b, nil
 }
 
-func (s *Serializer) appendBareItemBool(b []byte, v bool) ([]byte, error) {
+func appendBareItemBool(b []byte, v bool) ([]byte, error) {
 	b = append(b, '?')
 	if v {
 		b = append(b, '1')
@@ -253,7 +251,7 @@ func (s *Serializer) appendBareItemBool(b []byte, v bool) ([]byte, error) {
 	return b, nil
 }
 
-func (s *Serializer) appendKey(b []byte, key string) ([]byte, error) {
+func appendKey(b []byte, key string) ([]byte, error) {
 	m := keyRegex.FindStringIndex(key)
 	if len(m) == 0 || m[1] != len(key) {
 		return nil, errors.New("keys must start with a-z and only contain a-z0-9_-")
