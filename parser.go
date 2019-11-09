@@ -34,6 +34,39 @@ func NewParser(input string) *Parser {
 	return p
 }
 
+func (p *Parser) ParseDictionary() (Dictionary, error) {
+	dict, err := p.parseDictionary()
+	if err != nil {
+		return nil, err
+	}
+	if err := p.end(); err != nil {
+		return nil, err
+	}
+	return dict, nil
+}
+
+func (p *Parser) ParseList() (List, error) {
+	dict, err := p.parseList()
+	if err != nil {
+		return nil, err
+	}
+	if err := p.end(); err != nil {
+		return nil, err
+	}
+	return dict, nil
+}
+
+func (p *Parser) ParseItem() (Item, error) {
+	dict, err := p.parseItem()
+	if err != nil {
+		return nil, err
+	}
+	if err := p.end(); err != nil {
+		return nil, err
+	}
+	return dict, nil
+}
+
 func (p *Parser) parseDictionary() (Dictionary, error) {
 	output := &dictionary{}
 	for !p.eol() {
@@ -510,8 +543,6 @@ func (p *Parser) advance() {
 func (p *Parser) end() error {
 	p.skipOWS()
 	if !p.eol() {
-		// log.Printf("end, left=%s", p.input[p.pos:])
-		panic("end")
 		return &ParseError{
 			msg: "Expected end of the string, but found more data instead",
 			pos: p.pos,
@@ -533,14 +564,4 @@ func (p *Parser) skipOWS() {
 
 func (p *Parser) eol() bool {
 	return p.pos >= len(p.input)
-}
-
-func (p *Parser) hasLeftOver() bool {
-	pos := p.pos
-	p.skipOWS()
-	eol := p.eol()
-	if p.pos != pos {
-		p.pos = pos
-	}
-	return !eol
 }

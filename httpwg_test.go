@@ -1,4 +1,4 @@
-package stheader
+package stheader_test
 
 import (
 	"encoding/base32"
@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gihtub.com/hnakamur/stheader"
 )
 
 type httpwgTest struct {
@@ -43,10 +45,6 @@ func TestParseHTTPWG(t *testing.T) {
 		"string-generated",
 		"token-generated",
 	}
-	debug := false
-	if debug {
-		groupNames = []string{"error"}
-	}
 	for _, groupName := range groupNames {
 		filename := fmt.Sprintf("structured-header-tests/%s.json", groupName)
 		group, err := readHTTPWGTestGroupFile(filename)
@@ -56,33 +54,30 @@ func TestParseHTTPWG(t *testing.T) {
 		for _, test := range group {
 			subTestName := fmt.Sprintf("%s_%s", groupName, test.Name)
 			t.Run(subTestName, func(t *testing.T) {
-				parser := NewParser(strings.Join(test.Raw, ","))
-				if debug {
-					parser.debug = true
-				}
+				parser := stheader.NewParser(strings.Join(test.Raw, ","))
 				var hadError bool
 				var caughtErr error
 				var result interface{}
 				switch test.HeaderType {
 				case "item":
-					item, err := parser.parseItem()
-					if err != nil || parser.hasLeftOver() {
+					item, err := parser.ParseItem()
+					if err != nil {
 						hadError = true
 						caughtErr = err
 					} else {
 						result = convertItemToExpected(item)
 					}
 				case "list":
-					list, err := parser.parseList()
-					if err != nil || parser.hasLeftOver() {
+					list, err := parser.ParseList()
+					if err != nil {
 						hadError = true
 						caughtErr = err
 					} else {
 						result = convertListToExpected(list)
 					}
 				case "dictionary":
-					dict, err := parser.parseDictionary()
-					if err != nil || parser.hasLeftOver() {
+					dict, err := parser.ParseDictionary()
+					if err != nil {
 						hadError = true
 						caughtErr = err
 					} else {
@@ -149,33 +144,33 @@ func TestSerializeHTTPWG(t *testing.T) {
 			}
 			subTestName := fmt.Sprintf("%s_%s", groupName, test.Name)
 			t.Run(subTestName, func(t *testing.T) {
-				parser := NewParser(strings.Join(test.Raw, ","))
+				parser := stheader.NewParser(strings.Join(test.Raw, ","))
 				var got string
 				switch test.HeaderType {
 				case "item":
-					item, err := parser.parseItem()
-					if err != nil || parser.hasLeftOver() {
+					item, err := parser.ParseItem()
+					if err != nil {
 						t.Fatal("parse error")
 					}
-					got, err = Serialize(item)
+					got, err = stheader.Serialize(item)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}
 				case "list":
-					list, err := parser.parseList()
-					if err != nil || parser.hasLeftOver() {
+					list, err := parser.ParseList()
+					if err != nil {
 						t.Fatal("parse error")
 					}
-					got, err = Serialize(list)
+					got, err = stheader.Serialize(list)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}
 				case "dictionary":
-					dict, err := parser.parseDictionary()
-					if err != nil || parser.hasLeftOver() {
+					dict, err := parser.ParseDictionary()
+					if err != nil {
 						t.Fatal("parse error")
 					}
-					got, err = Serialize(dict)
+					got, err = stheader.Serialize(dict)
 					if err != nil {
 						t.Fatalf("serialize: %s", err)
 					}
@@ -196,42 +191,42 @@ func TestSerializeHTTPWG(t *testing.T) {
 	}
 }
 
-func convertBareItemToExpected(bi BareItem) interface{} {
+func convertBareItemToExpected(bi stheader.BareItem) interface{} {
 	switch bi.Type() {
-	case ItemTypeBool:
+	case stheader.ItemTypeBool:
 		return bi.AsBool()
-	case ItemTypeString:
+	case stheader.ItemTypeString:
 		return bi.AsString()
-	case ItemTypeByteSeq:
+	case stheader.ItemTypeByteSeq:
 		return base32.StdEncoding.EncodeToString(bi.AsByteSeq())
-	case ItemTypeInt:
+	case stheader.ItemTypeInt:
 		return float64(bi.AsInt())
-	case ItemTypeFloat:
+	case stheader.ItemTypeFloat:
 		return bi.AsFloat()
-	case ItemTypeToken:
+	case stheader.ItemTypeToken:
 		return string(bi.AsToken())
 	default:
 		panic("invalid BareItem type")
 	}
 }
 
-func convertItemToExpected(item Item) []interface{} {
+func convertItemToExpected(item stheader.Item) []interface{} {
 	return []interface{}{
 		convertBareItemToExpected(item.BareItem()),
 		convertParametersToExpected(item.Parameters()),
 	}
 }
 
-func convertDictionaryToExpected(dict Dictionary) interface{} {
+func convertDictionaryToExpected(dict stheader.Dictionary) interface{} {
 	ret := make(map[string]interface{})
-	dict.Range(func(key string, val Member) bool {
+	dict.Range(func(key string, val stheader.Member) bool {
 		ret[key] = convertMemberToExpected(val)
 		return true
 	})
 	return ret
 }
 
-func convertListToExpected(list List) interface{} {
+func convertListToExpected(list stheader.List) interface{} {
 	var ret []interface{}
 	for _, li := range list {
 		ret = append(ret, convertMemberToExpected(li))
@@ -239,18 +234,18 @@ func convertListToExpected(list List) interface{} {
 	return ret
 }
 
-func convertMemberToExpected(li Member) interface{} {
+func convertMemberToExpected(li stheader.Member) interface{} {
 	switch li.Type() {
-	case MemberTypeItem:
+	case stheader.MemberTypeItem:
 		return convertItemToExpected(li.AsItem())
-	case MemberTypeInnerList:
+	case stheader.MemberTypeInnerList:
 		return convertInnerListToExpected(li.AsInnerList())
 	default:
 		panic("invalid Member type")
 	}
 }
 
-func convertInnerListToExpected(list InnerList) interface{} {
+func convertInnerListToExpected(list stheader.InnerList) interface{} {
 	var ret []interface{}
 	var items []interface{}
 	for _, item := range list.Items() {
@@ -259,11 +254,11 @@ func convertInnerListToExpected(list InnerList) interface{} {
 	return append(ret, items, convertParametersToExpected(list.Parameters()))
 }
 
-func convertParametersToExpected(params Parameters) interface{} {
+func convertParametersToExpected(params stheader.Parameters) interface{} {
 	ret := make(map[string]interface{})
-	params.Range(func(key string, val BareItem) bool {
+	params.Range(func(key string, val stheader.BareItem) bool {
 		switch v := val.(type) {
-		case BareItem:
+		case stheader.BareItem:
 			ret[key] = convertBareItemToExpected(v)
 		case nil:
 			ret[key] = nil
