@@ -86,7 +86,7 @@ func (p *Parser) parseDictionary() (Dictionary, error) {
 }
 
 func (p *Parser) parseList() (List, error) {
-	var output []ListItem
+	var output []Member
 	for !p.eol() {
 		member, err := p.parseParameterizedMember()
 		if err != nil {
@@ -113,7 +113,7 @@ func (p *Parser) parseList() (List, error) {
 	return output, nil
 }
 
-func (p *Parser) parseParameterizedMember() (ListItem, error) {
+func (p *Parser) parseParameterizedMember() (Member, error) {
 	if p.debug {
 		log.Printf("parseParameterizedMember enter, rest=%s", string(p.input[p.pos:]))
 		defer log.Printf("parseParameterizedMember exit, rest=%s", string(p.input[p.pos:]))
@@ -135,12 +135,12 @@ func (p *Parser) parseParameterizedMember() (ListItem, error) {
 		}
 	}
 
-	return &listItem{
+	return &member{
 		val: value,
 	}, nil
 }
 
-func (p *Parser) parseInnerList() (*InnerList, error) {
+func (p *Parser) parseInnerList() (InnerList, error) {
 	err := p.matchByte('(')
 	if err != nil {
 		return nil, err
@@ -176,9 +176,9 @@ func (p *Parser) parseInnerList() (*InnerList, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &InnerList{
-		Items:      items,
-		Parameters: params,
+	return &innerList{
+		items:  items,
+		params: params,
 	}, nil
 }
 
@@ -188,7 +188,7 @@ func (p *Parser) parseItem() (Item, error) {
 		defer func() { log.Printf("parseItem exit, rest=%s", string(p.input[p.pos:])) }()
 	}
 
-	i, err := p.parseItemStr()
+	bi, err := p.parseBareItem()
 	if err != nil {
 		return nil, err
 	}
@@ -197,12 +197,11 @@ func (p *Parser) parseItem() (Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	i.(*item).params = params
 
-	// if err := p.end(); err != nil {
-	// 	return nil, err
-	// }
-	return i, nil
+	return &item{
+		bareItem: bi,
+		params:   params,
+	}, nil
 }
 
 func (p *Parser) parseParameters() (Parameters, error) {
@@ -232,7 +231,7 @@ func (p *Parser) parseParameters() (Parameters, error) {
 				pos: p.pos,
 			}
 		}
-		var paramValue Item
+		var paramValue BareItem
 		if !p.eol() {
 			b, err = p.peekByte()
 			if err != nil {
@@ -240,7 +239,7 @@ func (p *Parser) parseParameters() (Parameters, error) {
 			}
 			if b == '=' {
 				p.advance()
-				paramValue, err = p.parseItemStr()
+				paramValue, err = p.parseBareItem()
 				if err != nil {
 					return nil, err
 				}
@@ -251,10 +250,10 @@ func (p *Parser) parseParameters() (Parameters, error) {
 	return params, nil
 }
 
-func (p *Parser) parseItemStr() (Item, error) {
+func (p *Parser) parseBareItem() (BareItem, error) {
 	if p.debug {
-		log.Printf("parseItemStr enter, rest=%s", string(p.input[p.pos:]))
-		defer func() { log.Printf("parseItemStr exit, rest=%s", string(p.input[p.pos:])) }()
+		log.Printf("parseBareItem enter, rest=%s", string(p.input[p.pos:]))
+		defer func() { log.Printf("parseBareItem exit, rest=%s", string(p.input[p.pos:])) }()
 	}
 
 	b, err := p.peekByte()
@@ -267,31 +266,31 @@ func (p *Parser) parseItemStr() (Item, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &item{val: v}, nil
+		return &bareItem{val: v}, nil
 	case b == '*':
 		v, err := p.parseByteSeq()
 		if err != nil {
 			return nil, err
 		}
-		return &item{val: v}, nil
+		return &bareItem{val: v}, nil
 	case b == '?':
 		v, err := p.parseBoolean()
 		if err != nil {
 			return nil, err
 		}
-		return &item{val: v}, nil
+		return &bareItem{val: v}, nil
 	case ('0' <= b && b <= '9') || b == '-':
 		v, err := p.parseNumber()
 		if err != nil {
 			return nil, err
 		}
-		return &item{val: v}, nil
+		return &bareItem{val: v}, nil
 	case ('a' <= b && b <= 'z') || ('A' <= b && b <= 'Z'):
 		v, err := p.parseToken()
 		if err != nil {
 			return nil, err
 		}
-		return &item{val: v}, nil
+		return &bareItem{val: v}, nil
 	}
 	return nil, &ParseError{
 		msg: fmt.Sprintf("Unexpected character: %c on position %d", b, p.pos),

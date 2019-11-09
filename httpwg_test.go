@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -106,49 +105,44 @@ func TestHTTPWG(t *testing.T) {
 					}
 				}
 				if got, want := result, fixEmptyListExpected(test.Expected); !reflect.DeepEqual(got, want) {
-					t.Errorf("unmatch result, got=%+v (%T), want=%+v (%T)",
-						got, got, want, want)
-					got2, gotOK := got.([]interface{})
-					want2, wantOK := want.([]interface{})
-					if gotOK && wantOK {
-						t.Logf("both []interface{}, got=%p, len(got)=%d, cap(got)=%d, want=%p, len(want)=%d, cap(want)=%d", got2, len(got2), cap(got2), want2, len(want2), cap(want2))
-					}
+					t.Errorf("unmatch result, got=%+v, want=%+v",
+						got, want)
 				}
 			})
 		}
 	}
 }
 
-func convertItemToExpected(item Item) []interface{} {
-	var ret []interface{}
-	switch item.Type() {
+func convertBareItemToExpected(bi BareItem) interface{} {
+	switch bi.Type() {
 	case ItemTypeBool:
-		return append(ret, item.AsBool(),
-			convertParametersToExpected(item.Parameters()))
+		return bi.AsBool()
 	case ItemTypeString:
-		return append(ret, item.AsString(),
-			convertParametersToExpected(item.Parameters()))
+		return bi.AsString()
 	case ItemTypeByteSeq:
-		return append(ret, base32.StdEncoding.EncodeToString(item.AsByteSeq()),
-			convertParametersToExpected(item.Parameters()))
+		return base32.StdEncoding.EncodeToString(bi.AsByteSeq())
 	case ItemTypeInt:
-		return append(ret, float64(item.AsInt()),
-			convertParametersToExpected(item.Parameters()))
+		return float64(bi.AsInt())
 	case ItemTypeFloat:
-		return append(ret, item.AsFloat(),
-			convertParametersToExpected(item.Parameters()))
+		return bi.AsFloat()
 	case ItemTypeToken:
-		return append(ret, string(item.AsToken()),
-			convertParametersToExpected(item.Parameters()))
+		return string(bi.AsToken())
 	default:
-		panic("invalid Item type")
+		panic("invalid BareItem type")
+	}
+}
+
+func convertItemToExpected(item Item) []interface{} {
+	return []interface{}{
+		convertBareItemToExpected(item.BareItem()),
+		convertParametersToExpected(item.Parameters()),
 	}
 }
 
 func convertDictionaryToExpected(dict Dictionary) interface{} {
 	ret := make(map[string]interface{})
 	for key, member := range dict {
-		ret[key] = convertListItemToExpected(member)
+		ret[key] = convertMemberToExpected(member)
 	}
 	return ret
 }
@@ -156,38 +150,37 @@ func convertDictionaryToExpected(dict Dictionary) interface{} {
 func convertListToExpected(list List) interface{} {
 	var ret []interface{}
 	for _, li := range list {
-		ret = append(ret, convertListItemToExpected(li))
+		ret = append(ret, convertMemberToExpected(li))
 	}
 	return ret
 }
 
-func convertListItemToExpected(li ListItem) interface{} {
+func convertMemberToExpected(li Member) interface{} {
 	switch li.Type() {
-	case ListItemTypeItem:
+	case MemberTypeItem:
 		return convertItemToExpected(li.AsItem())
-	case ListItemTypeInnerList:
+	case MemberTypeInnerList:
 		return convertInnerListToExpected(li.AsInnerList())
 	default:
-		log.Printf("listItem=%+v (%T), val=%+v (%T)", li, li, li.(*listItem).val, li.(*listItem).val)
-		panic("invalid ListItem type")
+		panic("invalid Member type")
 	}
 }
 
-func convertInnerListToExpected(list *InnerList) interface{} {
+func convertInnerListToExpected(list InnerList) interface{} {
 	var ret []interface{}
 	var items []interface{}
-	for _, item := range list.Items {
+	for _, item := range list.Items() {
 		items = append(items, convertItemToExpected(item))
 	}
-	return append(ret, items, convertParametersToExpected(list.Parameters))
+	return append(ret, items, convertParametersToExpected(list.Parameters()))
 }
 
 func convertParametersToExpected(params Parameters) interface{} {
 	ret := make(map[string]interface{})
 	for key, val := range params {
 		switch v := val.(type) {
-		case Item:
-			ret[key] = convertItemToExpected(v)[0]
+		case BareItem:
+			ret[key] = convertBareItemToExpected(v)
 		case nil:
 			ret[key] = nil
 		default:

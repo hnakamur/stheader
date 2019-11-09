@@ -14,7 +14,7 @@ const (
 	ItemTypeToken
 )
 
-type Item interface {
+type BareItem interface {
 	Type() ItemType
 	AsString() string
 	AsByteSeq() []byte
@@ -22,41 +22,43 @@ type Item interface {
 	AsInt() int64
 	AsFloat() float64
 	AsToken() Token
+}
 
+type Item interface {
+	BareItem() BareItem
 	Parameters() Parameters
 }
 
-type ListItemType int
+type MemberType int
 
 const (
-	ListItemTypeInvalid ListItemType = iota
-	ListItemTypeItem
-	ListItemTypeInnerList
+	MemberTypeInvalid MemberType = iota
+	MemberTypeItem
+	MemberTypeInnerList
 )
 
-type Parameters map[string]Item
+type Parameters map[string]BareItem
 
-type ListItem interface {
-	Type() ListItemType
+type Member interface {
+	Type() MemberType
 	AsItem() Item
-	AsInnerList() *InnerList
+	AsInnerList() InnerList
 }
 
-type InnerList struct {
-	Items      []Item
-	Parameters Parameters
+type InnerList interface {
+	Items() []Item
+	Parameters() Parameters
 }
 
-type List []ListItem
+type List []Member
 
-type Dictionary map[string]ListItem
+type Dictionary map[string]Member
 
-type item struct {
-	val    interface{}
-	params Parameters
+type bareItem struct {
+	val interface{}
 }
 
-func (i *item) Type() ItemType {
+func (i *bareItem) Type() ItemType {
 	switch i.val.(type) {
 	case string:
 		return ItemTypeString
@@ -75,55 +77,77 @@ func (i *item) Type() ItemType {
 	}
 }
 
-func (i *item) AsString() string {
+func (i *bareItem) AsString() string {
 	return i.val.(string)
 }
 
-func (i *item) AsByteSeq() []byte {
+func (i *bareItem) AsByteSeq() []byte {
 	return i.val.([]byte)
 }
 
-func (i *item) AsBool() bool {
+func (i *bareItem) AsBool() bool {
 	return i.val.(bool)
 }
 
-func (i *item) AsInt() int64 {
+func (i *bareItem) AsInt() int64 {
 	return i.val.(int64)
 }
 
-func (i *item) AsFloat() float64 {
+func (i *bareItem) AsFloat() float64 {
 	return i.val.(float64)
 }
 
-func (i *item) AsToken() Token {
+func (i *bareItem) AsToken() Token {
 	return i.val.(Token)
+}
+
+type item struct {
+	bareItem BareItem
+	params   Parameters
+}
+
+func (i *item) BareItem() BareItem {
+	return i.bareItem
 }
 
 func (i *item) Parameters() Parameters {
 	return i.params
 }
 
-type listItem struct {
+type innerList struct {
+	items  []Item
+	params Parameters
+}
+
+func (l *innerList) Items() []Item {
+	return l.items
+}
+
+func (l *innerList) Parameters() Parameters {
+	return l.params
+}
+
+type member struct {
 	val interface{}
 }
 
-func (i *listItem) Type() ListItemType {
-	switch i.val.(type) {
+func (m *member) Type() MemberType {
+	switch m.val.(type) {
 	case Item:
-		return ListItemTypeItem
-	case *InnerList:
-		return ListItemTypeInnerList
+		return MemberTypeItem
+	case InnerList:
+		return MemberTypeInnerList
 	default:
-		return ListItemTypeInvalid
+		return MemberTypeInvalid
 	}
 }
 
-func (i *listItem) AsItem() Item {
-	return i.val.(Item)
+func (m *member) AsItem() Item {
+	return m.val.(Item)
 }
 
-func (i *listItem) AsInnerList() *InnerList {
-	return i.val.(*InnerList)
+func (m *member) AsInnerList() InnerList {
+	return m.val.(InnerList)
 }
 
 func (t ItemType) String() string {
@@ -145,13 +169,13 @@ func (t ItemType) String() string {
 	}
 }
 
-func (t ListItemType) String() string {
+func (t MemberType) String() string {
 	switch t {
-	case ListItemTypeItem:
+	case MemberTypeItem:
 		return "item"
-	case ListItemTypeInnerList:
+	case MemberTypeInnerList:
 		return "innerList"
 	default:
-		panic("invalidListItemType")
+		panic("invalidMemberType")
 	}
 }
