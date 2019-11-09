@@ -29,6 +29,13 @@ type Item interface {
 	Parameters() Parameters
 }
 
+type Parameters interface {
+	Delete(name string)
+	Load(name string) (value BareItem, ok bool)
+	Range(f func(name string, value BareItem) bool)
+	Store(name string, value BareItem)
+}
+
 type MemberType int
 
 const (
@@ -36,8 +43,6 @@ const (
 	MemberTypeItem
 	MemberTypeInnerList
 )
-
-type Parameters map[string]BareItem
 
 type Member interface {
 	Type() MemberType
@@ -125,6 +130,63 @@ func (l *innerList) Items() []Item {
 
 func (l *innerList) Parameters() Parameters {
 	return l.params
+}
+
+type paramItem struct {
+	name  string
+	value BareItem
+}
+
+type parameters struct {
+	items []paramItem
+}
+
+func (p *parameters) Delete(name string) {
+	i := p.index(name)
+	if i == -1 {
+		return
+	}
+
+	// https://github.com/golang/go/wiki/SliceTricks
+	if i < len(p.items)-1 {
+		copy(p.items[i:], p.items[i+1:])
+	}
+	p.items[len(p.items)-1] = paramItem{}
+	p.items = p.items[:len(p.items)-1]
+}
+
+func (p *parameters) Load(name string) (value BareItem, ok bool) {
+	i := p.index(name)
+	if i == -1 {
+		return nil, false
+	}
+	return p.items[i].value, true
+}
+
+func (p *parameters) Range(f func(name string, value BareItem) bool) {
+	for _, it := range p.items {
+		if !f(it.name, it.value) {
+			return
+		}
+	}
+}
+
+func (p *parameters) Store(name string, value BareItem) {
+	i := p.index(name)
+	if i == -1 {
+		p.items = append(p.items, paramItem{name: name, value: value})
+		return
+	}
+	p.items[i].value = value
+}
+
+func (p *parameters) index(name string) int {
+	for i, it := range p.items {
+		if it.name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 type member struct {

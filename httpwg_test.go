@@ -177,7 +177,7 @@ func convertInnerListToExpected(list InnerList) interface{} {
 
 func convertParametersToExpected(params Parameters) interface{} {
 	ret := make(map[string]interface{})
-	for key, val := range params {
+	params.Range(func(key string, val BareItem) bool {
 		switch v := val.(type) {
 		case BareItem:
 			ret[key] = convertBareItemToExpected(v)
@@ -186,7 +186,8 @@ func convertParametersToExpected(params Parameters) interface{} {
 		default:
 			panic("invalid param value type")
 		}
-	}
+		return true
+	})
 	return ret
 }
 

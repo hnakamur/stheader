@@ -52,7 +52,7 @@ func (p *Parser) parseDictionary() (Dictionary, error) {
 			return nil, err
 		}
 
-		value, err := p.parseParameterizedMember()
+		value, err := p.parseMember()
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +88,7 @@ func (p *Parser) parseDictionary() (Dictionary, error) {
 func (p *Parser) parseList() (List, error) {
 	var output []Member
 	for !p.eol() {
-		member, err := p.parseParameterizedMember()
+		member, err := p.parseMember()
 		if err != nil {
 			return nil, err
 		}
@@ -113,10 +113,10 @@ func (p *Parser) parseList() (List, error) {
 	return output, nil
 }
 
-func (p *Parser) parseParameterizedMember() (Member, error) {
+func (p *Parser) parseMember() (Member, error) {
 	if p.debug {
-		log.Printf("parseParameterizedMember enter, rest=%s", string(p.input[p.pos:]))
-		defer log.Printf("parseParameterizedMember exit, rest=%s", string(p.input[p.pos:]))
+		log.Printf("parseMember enter, rest=%s", string(p.input[p.pos:]))
+		defer log.Printf("parseMember exit, rest=%s", string(p.input[p.pos:]))
 	}
 	var value interface{}
 	b, err := p.peekByte()
@@ -210,7 +210,7 @@ func (p *Parser) parseParameters() (Parameters, error) {
 		defer func() { log.Printf("parseParameters exit, rest=%s", string(p.input[p.pos:])) }()
 	}
 
-	params := make(Parameters)
+	params := &parameters{}
 	for !p.eol() {
 		b, err := p.peekByte()
 		if err != nil {
@@ -225,7 +225,7 @@ func (p *Parser) parseParameters() (Parameters, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := params[paramKey]; ok {
+		if i := params.index(paramKey); i != -1 {
 			return nil, &ParseError{
 				msg: fmt.Sprintf("Duplicate parameter key: %s", paramKey),
 				pos: p.pos,
@@ -245,7 +245,7 @@ func (p *Parser) parseParameters() (Parameters, error) {
 				}
 			}
 		}
-		params[paramKey] = paramValue
+		params.Store(paramKey, paramValue)
 	}
 	return params, nil
 }
