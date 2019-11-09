@@ -141,9 +141,10 @@ func convertItemToExpected(item Item) []interface{} {
 
 func convertDictionaryToExpected(dict Dictionary) interface{} {
 	ret := make(map[string]interface{})
-	for key, member := range dict {
-		ret[key] = convertMemberToExpected(member)
-	}
+	dict.Range(func(key string, val Member) bool {
+		ret[key] = convertMemberToExpected(val)
+		return true
+	})
 	return ret
 }
 

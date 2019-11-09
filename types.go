@@ -57,7 +57,12 @@ type InnerList interface {
 
 type List []Member
 
-type Dictionary map[string]Member
+type Dictionary interface {
+	Delete(name string)
+	Load(name string) (value Member, ok bool)
+	Range(f func(name string, value Member) bool)
+	Store(name string, value Member)
+}
 
 type bareItem struct {
 	val interface{}
@@ -210,6 +215,63 @@ func (m *member) AsItem() Item {
 
 func (m *member) AsInnerList() InnerList {
 	return m.val.(InnerList)
+}
+
+type dictItem struct {
+	name  string
+	value Member
+}
+
+type dictionary struct {
+	items []dictItem
+}
+
+func (p *dictionary) Delete(name string) {
+	i := p.index(name)
+	if i == -1 {
+		return
+	}
+
+	// https://github.com/golang/go/wiki/SliceTricks
+	if i < len(p.items)-1 {
+		copy(p.items[i:], p.items[i+1:])
+	}
+	p.items[len(p.items)-1] = dictItem{}
+	p.items = p.items[:len(p.items)-1]
+}
+
+func (p *dictionary) Load(name string) (value Member, ok bool) {
+	i := p.index(name)
+	if i == -1 {
+		return nil, false
+	}
+	return p.items[i].value, true
+}
+
+func (p *dictionary) Range(f func(name string, value Member) bool) {
+	for _, it := range p.items {
+		if !f(it.name, it.value) {
+			return
+		}
+	}
+}
+
+func (p *dictionary) Store(name string, value Member) {
+	i := p.index(name)
+	if i == -1 {
+		p.items = append(p.items, dictItem{name: name, value: value})
+		return
+	}
+	p.items[i].value = value
+}
+
+func (p *dictionary) index(name string) int {
+	for i, it := range p.items {
+		if it.name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 func (t ItemType) String() string {

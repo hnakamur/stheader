@@ -35,11 +35,11 @@ func NewParser(input string) *Parser {
 }
 
 func (p *Parser) parseDictionary() (Dictionary, error) {
-	output := make(Dictionary)
+	output := &dictionary{}
 	for !p.eol() {
 		// Dictionary key
 		key, err := p.parseKey()
-		if _, ok := output[key]; ok {
+		if i := output.index(key); i != -1 {
 			return nil, &ParseError{
 				msg: fmt.Sprintf("Duplicate key in dictionary: %s", key),
 				pos: p.pos,
@@ -56,8 +56,7 @@ func (p *Parser) parseDictionary() (Dictionary, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		output[key] = value
+		output.Store(key, value)
 
 		// Optional whitespace
 		p.skipOWS()
