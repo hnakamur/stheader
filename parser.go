@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 )
@@ -24,6 +25,7 @@ func (e *ParseError) Pos() int {
 type Parser struct {
 	input []byte
 	pos   int
+	debug bool
 }
 
 func NewParser(input string) *Parser {
@@ -112,6 +114,10 @@ func (p *Parser) parseList() (List, error) {
 }
 
 func (p *Parser) parseParameterizedMember() (ListItem, error) {
+	if p.debug {
+		log.Printf("parseParameterizedMember enter, rest=%s", string(p.input[p.pos:]))
+		defer log.Printf("parseParameterizedMember exit, rest=%s", string(p.input[p.pos:]))
+	}
 	var value interface{}
 	b, err := p.peekByte()
 	if err != nil {
@@ -123,60 +129,23 @@ func (p *Parser) parseParameterizedMember() (ListItem, error) {
 			return nil, err
 		}
 	} else {
-		value, err = p.parseItemStr()
+		value, err = p.parseItem()
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	params := make(Parameters)
-	for !p.eol() {
-		p.skipOWS()
-		b, err := p.peekByte()
-		if err != nil {
-			return nil, err
-		}
-		if b != ';' {
-			break
-		}
-		p.advance()
-		p.skipOWS()
-		paramKey, err := p.parseKey()
-		if _, ok := params[paramKey]; ok {
-			return nil, &ParseError{
-				msg: fmt.Sprintf("Duplicate parameter key: %s", paramKey),
-				pos: p.pos,
-			}
-		}
-		var paramValue Item
-		if !p.eol() {
-			b, err = p.peekByte()
-			if err != nil {
-				return nil, err
-			}
-			if b == '=' {
-				p.advance()
-				paramValue, err = p.parseItemStr()
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		params[paramKey] = paramValue
 	}
 
 	return &listItem{
-		val:    value,
-		params: params,
+		val: value,
 	}, nil
 }
 
-func (p *Parser) parseInnerList() ([]Item, error) {
+func (p *Parser) parseInnerList() (*InnerList, error) {
 	err := p.matchByte('(')
 	if err != nil {
 		return nil, err
 	}
-	var result []Item
+	var items []Item
 	for !p.eol() {
 		p.skipOWS()
 		b, err := p.peekByte()
@@ -187,11 +156,11 @@ func (p *Parser) parseInnerList() ([]Item, error) {
 			p.advance()
 			break
 		}
-		item, err := p.parseItemStr()
+		item, err := p.parseItem()
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, item)
+		items = append(items, item)
 		b, err = p.peekByte()
 		if err != nil {
 			return nil, err
@@ -203,19 +172,47 @@ func (p *Parser) parseInnerList() ([]Item, error) {
 			}
 		}
 	}
-	return result, nil
+	params, err := p.parseParameters()
+	if err != nil {
+		return nil, err
+	}
+	return &InnerList{
+		Items:      items,
+		Parameters: params,
+	}, nil
 }
 
 func (p *Parser) parseItem() (Item, error) {
-	p.skipOWS()
+	if p.debug {
+		log.Printf("parseItem enter, rest=%s", string(p.input[p.pos:]))
+		defer func() { log.Printf("parseItem exit, rest=%s", string(p.input[p.pos:])) }()
+	}
+
 	i, err := p.parseItemStr()
 	if err != nil {
 		return nil, err
 	}
 
+	params, err := p.parseParameters()
+	if err != nil {
+		return nil, err
+	}
+	i.(*item).params = params
+
+	// if err := p.end(); err != nil {
+	// 	return nil, err
+	// }
+	return i, nil
+}
+
+func (p *Parser) parseParameters() (Parameters, error) {
+	if p.debug {
+		log.Printf("parseParameters enter, rest=%s", string(p.input[p.pos:]))
+		defer func() { log.Printf("parseParameters exit, rest=%s", string(p.input[p.pos:])) }()
+	}
+
 	params := make(Parameters)
 	for !p.eol() {
-		p.skipOWS()
 		b, err := p.peekByte()
 		if err != nil {
 			return nil, err
@@ -226,6 +223,9 @@ func (p *Parser) parseItem() (Item, error) {
 		p.advance()
 		p.skipOWS()
 		paramKey, err := p.parseKey()
+		if err != nil {
+			return nil, err
+		}
 		if _, ok := params[paramKey]; ok {
 			return nil, &ParseError{
 				msg: fmt.Sprintf("Duplicate parameter key: %s", paramKey),
@@ -248,15 +248,15 @@ func (p *Parser) parseItem() (Item, error) {
 		}
 		params[paramKey] = paramValue
 	}
-	i.(*item).params = params
-
-	if err := p.end(); err != nil {
-		return nil, err
-	}
-	return i, nil
+	return params, nil
 }
 
 func (p *Parser) parseItemStr() (Item, error) {
+	if p.debug {
+		log.Printf("parseItemStr enter, rest=%s", string(p.input[p.pos:]))
+		defer func() { log.Printf("parseItemStr exit, rest=%s", string(p.input[p.pos:])) }()
+	}
+
 	b, err := p.peekByte()
 	if err != nil {
 		return nil, err
@@ -351,6 +351,11 @@ func (p *Parser) parseToken() (Token, error) {
 var keyRegex = regexp.MustCompile(`^[a-z][a-z0-9_\-\*]{0,254}`)
 
 func (p *Parser) parseKey() (string, error) {
+	if p.debug {
+		log.Printf("parseKey enter, rest=%s", string(p.input[p.pos:]))
+		defer func() { log.Printf("parseKey exit, rest=%s", string(p.input[p.pos:])) }()
+	}
+
 	m := keyRegex.Find(p.input[p.pos:])
 	if len(m) == 0 {
 		return "", &ParseError{
@@ -491,6 +496,7 @@ func (p *Parser) getByte() (byte, error) {
 
 func (p *Parser) peekByte() (byte, error) {
 	if len(p.input[p.pos:]) == 0 {
+		// panic("Unexpected end of string in peekByte")
 		return 0, &ParseError{
 			msg: "Unexpected end of string in peekByte",
 			pos: p.pos,
@@ -506,6 +512,8 @@ func (p *Parser) advance() {
 func (p *Parser) end() error {
 	p.skipOWS()
 	if !p.eol() {
+		// log.Printf("end, left=%s", p.input[p.pos:])
+		panic("end")
 		return &ParseError{
 			msg: "Expected end of the string, but found more data instead",
 			pos: p.pos,
@@ -526,5 +534,15 @@ func (p *Parser) skipOWS() {
 }
 
 func (p *Parser) eol() bool {
-	return p.pos == len(p.input)
+	return p.pos >= len(p.input)
+}
+
+func (p *Parser) hasLeftOver() bool {
+	pos := p.pos
+	p.skipOWS()
+	eol := p.eol()
+	if p.pos != pos {
+		p.pos = pos
+	}
+	return !eol
 }

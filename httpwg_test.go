@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -42,7 +43,10 @@ func TestHTTPWG(t *testing.T) {
 		"large-generated",
 		"string-generated",
 		"token-generated",
-		// "token-semicolon",
+	}
+	debug := false
+	if debug {
+		groupNames = []string{"error"}
 	}
 	for _, groupName := range groupNames {
 		filename := fmt.Sprintf("structured-header-tests/%s.json", groupName)
@@ -54,13 +58,16 @@ func TestHTTPWG(t *testing.T) {
 			subTestName := fmt.Sprintf("%s_%s", groupName, test.Name)
 			t.Run(subTestName, func(t *testing.T) {
 				parser := NewParser(strings.Join(test.Raw, ","))
+				if debug {
+					parser.debug = true
+				}
 				var hadError bool
 				var caughtErr error
 				var result interface{}
 				switch test.HeaderType {
 				case "item":
 					item, err := parser.parseItem()
-					if err != nil {
+					if err != nil || parser.hasLeftOver() {
 						hadError = true
 						caughtErr = err
 					} else {
@@ -68,7 +75,7 @@ func TestHTTPWG(t *testing.T) {
 					}
 				case "list":
 					list, err := parser.parseList()
-					if err != nil {
+					if err != nil || parser.hasLeftOver() {
 						hadError = true
 						caughtErr = err
 					} else {
@@ -76,7 +83,7 @@ func TestHTTPWG(t *testing.T) {
 					}
 				case "dictionary":
 					dict, err := parser.parseDictionary()
-					if err != nil {
+					if err != nil || parser.hasLeftOver() {
 						hadError = true
 						caughtErr = err
 					} else {
@@ -154,26 +161,25 @@ func convertListToExpected(list List) interface{} {
 	return ret
 }
 
-func convertListItemToExpected(listItem ListItem) interface{} {
-	var ret []interface{}
-	switch listItem.Type() {
+func convertListItemToExpected(li ListItem) interface{} {
+	switch li.Type() {
 	case ListItemTypeItem:
-		return append(ret, convertItemToExpected(listItem.AsItem())[0],
-			convertParametersToExpected(listItem.Parameters()))
+		return convertItemToExpected(li.AsItem())
 	case ListItemTypeInnerList:
-		return append(ret, convertInnerListToExpected(listItem.AsInnerList()),
-			convertParametersToExpected(listItem.Parameters()))
+		return convertInnerListToExpected(li.AsInnerList())
 	default:
+		log.Printf("listItem=%+v (%T), val=%+v (%T)", li, li, li.(*listItem).val, li.(*listItem).val)
 		panic("invalid ListItem type")
 	}
 }
 
-func convertInnerListToExpected(list InnerList) interface{} {
+func convertInnerListToExpected(list *InnerList) interface{} {
 	var ret []interface{}
-	for _, item := range []Item(list) {
-		ret = append(ret, convertItemToExpected(item))
+	var items []interface{}
+	for _, item := range list.Items {
+		items = append(items, convertItemToExpected(item))
 	}
-	return ret
+	return append(ret, items, convertParametersToExpected(list.Parameters))
 }
 
 func convertParametersToExpected(params Parameters) interface{} {

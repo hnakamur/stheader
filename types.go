@@ -39,12 +39,13 @@ type Parameters map[string]Item
 type ListItem interface {
 	Type() ListItemType
 	AsItem() Item
-	AsInnerList() InnerList
-
-	Parameters() Parameters
+	AsInnerList() *InnerList
 }
 
-type InnerList []Item
+type InnerList struct {
+	Items      []Item
+	Parameters Parameters
+}
 
 type List []ListItem
 
@@ -103,15 +104,14 @@ func (i *item) Parameters() Parameters {
 }
 
 type listItem struct {
-	val    interface{}
-	params Parameters
+	val interface{}
 }
 
 func (i *listItem) Type() ListItemType {
 	switch i.val.(type) {
 	case Item:
 		return ListItemTypeItem
-	case []Item:
+	case *InnerList:
 		return ListItemTypeInnerList
 	default:
 		return ListItemTypeInvalid
@@ -122,12 +122,8 @@ func (i *listItem) AsItem() Item {
 	return i.val.(Item)
 }
 
-func (i *listItem) AsInnerList() InnerList {
-	return i.val.([]Item)
-}
-
-func (i *listItem) Parameters() Parameters {
-	return i.params
+func (i *listItem) AsInnerList() *InnerList {
+	return i.val.(*InnerList)
 }
 
 func (t ItemType) String() string {
